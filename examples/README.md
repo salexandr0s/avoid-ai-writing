@@ -1,24 +1,26 @@
 # House-style config examples
 
-`--style` adds a house style on top of the de-AI pass. It is not a guide registry: it
-applies **register/voice** directives and removes AI tells, on top of whatever
-**mechanics** you enforce. The preferred way in is a **config file**
-(`--style ./house.json`, or a bare name matching `examples/<name>.json`): it is applied, and
-the checkable subset of its mechanics is verified deterministically (see the table below for
-which rules gate the exit code and which are advisory). The files here are *examples of that
-format*; copy one and edit it. They also serve as test fixtures: `scripts/check-style.test.js`
-resolves bare `--config` names against this directory and asserts on their contents, so editing
-or removing either file breaks `npm test`.
+`--style` adds house-style review to the AI-writing audit. In rewrite and edit modes,
+apply authorized **register/voice** and **mechanics** changes under the editing contract;
+in detect mode, report findings without changing the text. The preferred input is a
+**config file** (`--style ./house.json`, or a bare name matching `examples/<name>.json`).
+The checker covers a subset of its mechanics; report verification only after it runs
+(see the table below for which rules gate the exit code and which are advisory).
+The files here are *examples of that format*; copy one into the document's project
+and edit the copy. Bare `--config`
+names resolve against this directory. From the repository root, run
+`npm run verify` (or `node scripts/verify.js`) for offline package and tool checks,
+and `npm test` for the portable regression suite.
 
 ## Where encoded guides live
 
-For a real published guide, don't reach for a bare name or expect a bundled config: see the
+For a published guide, see the
 README's [**House style is a different job**](https://github.com/conorbronsdon/avoid-ai-writing/blob/main/README.md#house-style-is-a-different-job)
 section, which points at [Vale](https://github.com/vale-cli/vale) (where licensed, attributed
 guide packages live) and records the licensing decision in
-[#88](https://github.com/conorbronsdon/avoid-ai-writing/issues/88). In short: Vale enforces a
-guide's mechanics; this layer adds register/voice and removes AI tells; the config format
-below is for a quick custom house style.
+[#88](https://github.com/conorbronsdon/avoid-ai-writing/issues/88). Vale enforces a
+guide's mechanics; this layer adds register/voice and removes AI tells. The config
+format below is for a custom house style.
 
 **This repo bundles no style guides.** The example files are generic and guide-neutral (no
 guide names or aliases), so nothing here claims to implement a guide or tracks its edition.
@@ -78,23 +80,33 @@ catalog, the config wins the mechanic.
 Unrecognized keys or values are reported as **warnings** (a config the tool couldn't fully
 apply) rather than silently ignored; omitted keys do nothing.
 
-Before checking, the checker skips closed YAML frontmatter, fenced/inline/indented code,
+Before checking, the checker skips closed recognizable mapping-style YAML frontmatter, fenced/inline/indented code,
 link destinations and titles, reference identifiers, HTML tags and comments, and escaped
 punctuation. Link titles use straight quotes as *syntax*. List paragraph continuations stay
-checked; extra indentation can start code inside an item. A leading thematic break followed
-by a blank line is prose, not frontmatter. The `latinAbbrev` parenthesis carve-out carries
+checked; extra indentation can start code inside an item. A closed mapping header may
+start with YAML blank or comment lines; ordinary prose between thematic breaks remains
+editable. Other YAML forms need model review. The `latinAbbrev` parenthesis carve-out carries
 across wrapped lines but resets at a paragraph break, so an unclosed `(` disables that rule
 for the rest of its paragraph.
 
 ## Normalize quote marks after a rewrite
 
-Rewrite and edit mode run this pass before delivery. Keep the original document as
-the reference so generated marks cannot override its existing convention:
+Rewrite and edit mode plan this pass within the editing budget; detect mode never
+normalizes the source. Follow [the skill's file-handling contract](../SKILL.md#file-handling):
+retain complete original and final snapshots separately for preservation checks,
+and create model-identified changed editable prose plus its matching original
+prose reference in an owned OS temporary directory outside the skill and project.
+Exclude unchanged prose, quotations, attributed passages, tables, and other
+protected spans from both filtered inputs. Do not use the complete original as
+the marks reference or write the result over the complete target document.
+
+Replace the absolute placeholder paths below with the installed skill path,
+the invocation's temporary input paths, and the resolved user-config path:
 
 ```bash
-node scripts/normalize-quotes.js draft.md --reference original.md
-node scripts/normalize-quotes.js draft.md --reference original.md --write
-node scripts/check-style.js draft.md --config ./house.json
+node '/path/to/skill/scripts/normalize-quotes.js' '/path/to/temp/changed-prose.md' --reference '/path/to/temp/original-prose.md'
+node '/path/to/skill/scripts/normalize-quotes.js' '/path/to/temp/changed-prose.md' --reference '/path/to/temp/original-prose.md' --write
+node '/path/to/skill/scripts/check-style.js' '/path/to/temp/changed-prose.md' --config '/path/to/project/house.json'
 ```
 
 The default `--quotes auto` infers double quotes and single quotes/apostrophes
@@ -107,8 +119,9 @@ Without `--write`, stdout contains
 only the resulting document and the file stays unchanged. The command exits 0 on success
 or 2 for invalid arguments or file errors. It also exports
 `normalize(text, quotes = 'auto', reference = text)` and `inferQuotes(text)`.
-For skill rewrites, normalize only editable prose and retain exempt quotations,
-tables and attributed text when inserting the result into the document.
+Apply the result only to its corresponding changed editable spans. Report the
+style check's filtered scope, rather than whole-document compliance, and retain
+exempt quotations, tables, and attributed text when inserting the result.
 
 The normalizer shares the checker's Markdown protection and changes only quotation marks
 and apostrophes in prose. Protected source, whitespace, BOM and line endings survive

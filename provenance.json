@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "package": "avoid-ai-writing",
+  "imported_version": "3.37.0",
+  "local_revision": 2,
+  "immediate_source": {
+    "repository": "https://github.com/salexandr0s/avoid-ai-writing",
+    "commit": "1416dfd0388fb338f43d248d5f262fa44eefe4b2"
+  },
+  "canonical_source": {
+    "repository": "https://github.com/conorbronsdon/avoid-ai-writing",
+    "commit": "5a5cf6a45331384d4ff68f1f6ce50da24da0da4c"
+  },
+  "protected_files": {
+    "LICENSE": {
+      "algorithm": "sha256",
+      "sha256": "4da9b9f0bb899269b6e79fb383b4c3f24ebcadf7352f970871bae3e215401589",
+      "status": "unchanged from import"
+    },
+    "NOTICE.md": {
+      "algorithm": "sha256",
+      "sha256": "cced9e526a6fcdd9f3fcf47e282227c768b644db82e17b6dec886d9b3e8ce709",
+      "status": "unchanged from import"
+    }
+  },
+  "local_modifications": [
+    {
+      "area": "editing policy and workflow",
+      "paths": [
+        "SKILL.md",
+        "references/patterns.md",
+        "examples/README.md"
+      ],
+      "changes": "Editing contract, source fidelity, protected content, saving and temporary-file rules, matching editable-prose normalization inputs, runtime guidance, and output references."
+    },
+    {
+      "area": "titles and headings",
+      "paths": [
+        "SKILL.md",
+        "references/headlines.md"
+      ],
+      "changes": "Source-supported title and heading review; editorial judgments remain separate from detector categories."
+    },
+    {
+      "area": "Codex interface copy",
+      "paths": [
+        "agents/openai.yaml"
+      ],
+      "changes": "Display name, description, and prompt aligned with the local editing scope; explicit invocation retained."
+    },
+    {
+      "area": "standalone documentation and provenance",
+      "paths": [
+        "README.md",
+        "examples/README.md",
+        "detector/CATEGORIES.md",
+        "provenance.json"
+      ],
+      "changes": "Direct Claude Code and Codex installs, optional shared checkout in any directory, package ownership, portable verification, maintenance, and attribution; detector links pinned to canonical import."
+    },
+    {
+      "area": "protected-region parsing and preservation",
+      "paths": [
+        "detector/patterns.js",
+        "detector/validate.js",
+        "scripts/markdown-prose.js"
+      ],
+      "changes": "Protected-region fixes for frontmatter and code, mapping-style frontmatter recognition that keeps thematic-break prose editable, path preservation, exact tracker carveouts, and CLI diagnostics; API and browser compatibility retained."
+    },
+    {
+      "area": "import whitespace cleanup",
+      "paths": [
+        "detector/patterns.js"
+      ],
+      "changes": "Whitespace-only cleanup of imported package text; license and attribution notice retained byte for byte."
+    },
+    {
+      "area": "portable offline verification and regressions",
+      "paths": [
+        "package.json",
+        "scripts/verify.js",
+        "tests/avoid-ai-writing-tools.test.js",
+        "tests/package.test.js"
+      ],
+      "changes": "Dependency-free Node verification and native regression tests, with package-relative paths, relocation checks, damaged-package failures, and no assistant settings or home-directory mutation."
+    }
+  ]
+}

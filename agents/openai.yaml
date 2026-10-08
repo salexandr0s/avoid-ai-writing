@@ -1,6 +1,6 @@
 interface:
-  display_name: "Avoid AI Writing"
-  short_description: "Audit and rewrite AI-isms"
-  default_prompt: "Audit or rewrite this text using the full Avoid AI Writing rulebook while preserving voice, facts, and protected content."
+  display_name: "Avoid AI Writing: Prose & Headlines"
+  short_description: "Scan, rewrite, or edit prose and headlines"
+  default_prompt: "Use $avoid-ai-writing to scan, rewrite, or edit this prose and its headlines in the requested mode, preserving voice, facts, structure, and protected content. Save only when requested."
 policy:
   allow_implicit_invocation: false

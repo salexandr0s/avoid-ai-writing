@@ -24,11 +24,11 @@ Replacement examples supply wording, not new facts.
 
 ### Words and phrases to replace
 
-Words are organized into three tiers based on how reliably they signal AI-generated text. This tiered approach — adapted from [brandonwise/humanizer](https://github.com/brandonwise/humanizer)'s vocabulary research — reduces false positives on words that are fine in isolation but suspicious in clusters.
+Words are organized into three editorial review tiers, adapted from [brandonwise/humanizer](https://github.com/brandonwise/humanizer). The tiers help prioritize generic wording while preserving words that work in context. Their thresholds are operational heuristics, not validated boundaries between human and machine authorship.
 
 - **Tier 1 — Review every match.** These words are strong candidates in their listed senses. Apply the context exceptions and preserve legitimate technical or author-specific uses.
-- **Tier 2 — Flag in clusters.** Individually fine, but two or more in the same paragraph is a strong AI signal. Flag when they appear together.
-- **Tier 3 — Flag by density.** Common words that AI simply overuses. Flag a word only when that one word repeats heavily: at least `max(3, floor(wordCount × 0.03))` uses. Round 3% of the total word count down to a whole number, with a minimum of three uses. Count each listed form on its own (`significant` and `significantly` are separate), so several different Tier 3 words that together pass 3% do not trigger the rule. The threshold is deliberately conservative: in a 1,000-word piece, one word has to appear 30 times.
+- **Tier 2 — Review clusters.** Individually fine; two or more in the same paragraph prompt a check for generic or inflated wording. Apply the listed context and sense exceptions before reporting a finding.
+- **Tier 3 — Review density.** Common words that can become repetitive. Review a word only when that one word repeats heavily: at least `max(3, floor(wordCount × 0.03))` uses. Round 3% of the total word count down to a whole number, with a minimum of three uses. Count each listed form on its own (`significant` and `significantly` are separate), so several different Tier 3 words that together pass 3% do not trigger the rule. In a 1,000-word piece, one word has to appear 30 times. Density does not establish authorship or override an accurate repeated term.
 
 **Match inflected forms.** Each entry below covers the listed word *and its morphological variants* — adverb (`-ly`), gerund/participle (`-ing`), plural, comparative/superlative, and verb conjugations — unless a variant carries a distinct, legitimate meaning. So `genuine` also flags `genuinely`, `leverage` also flags `leveraging` / `leveraged`, `delve` covers `delving`, and `meticulous` covers `meticulously`. When a variant has a separate honest sense (e.g. `real` meaning factual, not the intensifier in "a real improvement"), judge by context rather than matching blindly. For Tier 3 density, keep separately listed forms in separate counts as specified above; this matching guidance does not combine them.
 
@@ -36,13 +36,13 @@ Words are organized into three tiers based on how reliably they signal AI-genera
 
 Tier 1 splits into two bands. Once a match is a justified finding and editing is authorized, both bands use the same replacement approach. What differs is what a flag *means*.
 
-**1A — AI frequency markers.** Words claimed to appear far more often in machine text than in human writing. A cluster of these is evidence about how a passage was produced.
+**1A — AI frequency markers.** Vocabulary inherited from AI-writing style catalogs. A cluster prompts review for generic or inflated prose; it does not establish how a passage was produced.
 
-**1B — Clarity edits.** Wordiness and inflated formality. Replacing them is good writing regardless of who wrote the sentence, and a 1B hit is **not** evidence of machine authorship. Measured against 257 paragraphs of verified pre-2023 human prose, 1B entries fire on ordinary professional and formal writing at a meaningful rate — `in order to`, `utilize`, `commence`, `ascertain`, and `endeavor` are simply the words some people reach for. The detector emits these as `tier1-clarity`, weights them like Tier 2, and excludes them from the dense-AI-vocabulary signal so a wordiness fix can never push a document toward an AI classification.
+**1B — Clarity edits.** Wordiness and inflated formality. A justified replacement can improve writing regardless of who wrote the sentence, and a 1B hit is **not** evidence of machine authorship. Expressions such as `in order to`, `utilize`, `commence`, `ascertain`, and `endeavor` also belong to ordinary professional and formal writing. The detector emits these as `tier1-clarity`, weights them like Tier 2, and excludes them from the dense-AI-vocabulary signal. Apply context and source-fidelity checks before editing.
 
 In `detect` mode, report the two bands separately. Presenting a wordiness fix as authorship evidence is the error this split exists to prevent.
 
-Caveat worth keeping visible: the "appears far more often in AI text" claim behind 1A is **inherited, not measured here**. It traces to [brandonwise/humanizer](https://github.com/brandonwise/humanizer), which states a 5–20x ratio without publishing a method or dataset. Treat 1A as a well-supported convention rather than a verified statistic until this repo measures the ratios itself against a machine-written corpus.
+The frequency claim behind 1A is **inherited, not measured here**. The cited [brandonwise/humanizer](https://github.com/brandonwise/humanizer) source does not publish a method or dataset for those ratios. Treat this list as an editorial heuristic, not a verified statistic or authorship test.
 
 ##### Tier 1A — AI frequency markers
 
@@ -55,7 +55,7 @@ Caveat worth keeping visible: the "appears far more often in AI text" claim behi
 | paradigm | model, approach, framework |
 | embark | start, begin |
 | beacon (metaphor) | example, guide, source of hope (name what provides the example or guidance) |
-| testament to | shows, proves, demonstrates |
+| testament to | shows, suggests, is evidence of — only at the source's level of support; never upgrade an observation to proof |
 | robust | strong, reliable, solid |
 | comprehensive | thorough, complete, full |
 | cutting-edge | latest, newest, advanced |
@@ -121,7 +121,7 @@ Wordiness and formality, not authorship evidence. Same fix, weaker claim.
 
 #### Tier 2 — Flag when 2+ appear in the same paragraph
 
-These words are legitimate on their own. When two or more show up together, the paragraph likely needs a rewrite.
+These words are legitimate on their own. When two or more show up together, review whether they add meaning or merely repeat generic praise. Preserve accurate domain terms and source voice.
 
 | Replace | With |
 |---|---|
@@ -168,7 +168,7 @@ These words are legitimate on their own. When two or more show up together, the 
 
 #### Tier 3 — Flag only at high density
 
-These are normal words. Only flag one when that word alone passes the per-word density threshold in the tier summary above — a sign that AI filled space with vague praise instead of specifics.
+These are normal words. Review one only when that word alone passes the per-word density threshold in the tier summary above, then check whether its repetition adds meaning. Repetition can be necessary; it is not evidence that AI supplied the prose.
 
 | Word | What to do |
 |---|---|
@@ -188,7 +188,7 @@ These are normal words. Only flag one when that word alone passes the per-word d
 
 #### Tier 3 phrases — Flag at density or in clusters
 
-Multi-word boilerplate that's individually unobjectionable but stacks heavily in AI-generated content (crypto, web3, DePIN, AI/infra reviews are the worst offenders). Flag at **2+ uses of the same phrase** (the per-phrase rule — lower threshold than single-word Tier 3 because a two-word match repeated twice is already stronger evidence than re-using "significant"), *plus* a **cluster rule**: three or more *distinct* phrases from this table in one piece is a strong signal even when each phrase only appears once — that's the shape LLMs take when they vary their own boilerplate to seem less repetitive.
+Multi-word phrases can become boilerplate when repeated or stacked without concrete content. Review **2+ uses of the same phrase**, or three or more **distinct** phrases from this table in one piece. These are editorial thresholds, not measured authorship signals. Preserve phrases that convey needed domain meaning; change only justified findings under the editing contract.
 
 | Phrase | What to do |
 |---|---|
@@ -201,7 +201,7 @@ Multi-word boilerplate that's individually unobjectionable but stacks heavily in
 | decentralized compute | Specify the architecture or cut. The phrase has become a category label, not a claim |
 | (sustainable) reward emissions | Cite the emission schedule and the sink |
 | tokenized incentive structures | Describe the actual mechanism (vesting, gauge, bonded LP, etc.) |
-| designed for long-term [X] | Cut "designed for" — either it is or it isn't. Then state the property |
+| designed for long-term [X] | Preserve design intent. Name a supplied goal, time horizon, or mechanism when available; never turn an intended property into demonstrated capability. If detail is missing, retain the intent and flag the gap. |
 
 #### Audience-fit note: domain-term collision (judgment only)
 
@@ -214,7 +214,7 @@ In cryptography writing, flag generic "proof" or "proof point" only when a reade
 
 ### Template phrases (avoid)
 
-These slot-fill constructions signal that a sentence was generated, not written. If a phrase has a blank where a noun or adjective could go and still sound the same, it's too generic.
+Review slot-fill constructions when their wording could fit unrelated subjects without changing the claim. That can indicate generic prose; it does not establish who wrote it.
 
 - "a [adjective] step towards [adjective] AI infrastructure" → use a capability, benchmark, or outcome already supplied; otherwise cut the empty modifier or flag the missing detail
 - "a [adjective] step forward for [noun]" → same rule: say what changed only when the source establishes it. Literal-sense exclusion: neutral descriptions such as "a first step towards the full API" and "a small step towards cutting our storage bill" do not flag. The detector looks for a vague-praise adjective such as "major", "crucial", or "significant" before "step towards" or "step forward"; the following goal does not determine whether it flags.
@@ -253,8 +253,9 @@ These slot-fill constructions signal that a sentence was generated, not written.
 - Fix: use a falsifiable version only when the source supplies the claim and its details; otherwise cut the empty closer or flag the missing detail. "DePIN compute may exceed AWS spot pricing for embarrassingly parallel workloads by 2027" is a prediction when those terms came from the source. "The intersection of AI and DePIN may become one of the most important narratives of the next market cycle" is not.
 
 ### Hedge-stacked predictions
-- Stacking a modal with a hedge adverb: "could potentially create," "may eventually unlock," "might ultimately transform." Either word alone is acceptable; the stack is the tell. Each hedge cancels the next, leaving a sentence that asserts nothing while sounding cautious and thoughtful.
-- Fix: keep the one qualifier that retains the source's intended uncertainty. If the intended confidence is unclear and the distinction matters, leave it and ask rather than choosing a stronger claim.
+- Review redundant uncertainty such as "could potentially create" when both words express the same possibility. "Could create" can preserve that meaning; do not replace it with "will create."
+- Preserve qualifiers with distinct work. "May eventually unlock" can express both uncertainty and delayed timing; "might ultimately transform" can express uncertainty and a possible endpoint. Neither combination is automatically a finding. Read the surrounding claim before deciding that time or endpoint is expendable.
+- Remove only duplicated uncertainty. Retain conditions, timing, endpoint, and the source's confidence. If their intended meaning is unclear and the distinction matters, leave the wording and flag the ambiguity instead of choosing a stronger or more immediate claim.
 
 ### "Real/actual" adjective inflation
 - "Real on-chain tokenomics," "actual reward sustainability," "genuine utility," "true product-market fit." Using `real` / `actual` / `genuine` / `true` as an empty intensifier on an abstract noun implies the rest of the field is fake or superficial — without naming what makes this instance the real one. Common in crypto/AI/web3 content where the writer wants to signal sophistication.
@@ -265,7 +266,7 @@ These slot-fill constructions signal that a sentence was generated, not written.
 ### Moral-adjective category errors
 - AI glues moral or character adjectives (`honest`, `genuine`, `faithful`, `truthful`) onto non-agentic technical nouns (`shape`, `number`, `representation`, `accuracy`, `curve`, `output`) where the adjective cannot literally modify the noun. "An honest shape" — shapes are not moral agents; it is a category error. The same move appears as the adverb form: "described honestly," "flagged honestly" — the passive voice hides that there is no subject capable of honesty.
 - **Fix:** state a concrete property only when the source establishes it; `realistic` and `clearer` are valid replacements only when those are the intended properties. Otherwise cut the unsupported moral adjective or flag the missing property. Cut empty moral adverbs from passive constructions — "flagged honestly" → "flagged" or "noted" when that preserves the source action.
-- **Related — ontological slop on assumptions:** "The assumption stops being true." Assumptions do not flip from true to false; they degrade in adequacy. Write "the assumption breaks down" or "no longer holds."
+- **Related — ambiguous assumptions:** An assumption can be true or false, and changing conditions can make it cease to hold. Review "the assumption stops being true" only when the passage actually means that a model becomes less adequate. Use "the assumption no longer holds" or "the model becomes less adequate" only when that is the source's meaning; do not replace a factual change with a weaker claim by default.
 - **Related — gratuitous universal quantifiers:** "Taught in every first-year biochemistry course" instead of "taught in introductory biochemistry." The universal claim ("every") is unverifiable and unnecessary — it borrows authority from a scope the writer cannot check. Replace with the actual scope or drop the quantifier.
 
 ### Transformation crutch
@@ -358,7 +359,7 @@ These slot-fill constructions signal that a sentence was generated, not written.
 - In bulleted lists where each item leads with a short label, review a period that makes the label look like a complete sentence before the explanation continues. Strongest form: bold labels (`**Intros.**`, `**Content distribution.**`, `**Developer GTM.**`); the colon form (`**Intros:**`) makes the label-to-explanation relationship explicit. The same shape without bold (`- Intros. Years of conferences and operator network.`) can create the same break — a short noun-phrase label followed by a gloss. The colon reads as "here's what this label means"; the period reads as a sentence that the following clause then contradicts by continuing. Example tell: `- **Intros.** Years of conferences and operator network.` becomes `- **Intros:** years of conferences and operator network.` Fix the period to a colon and lowercase the start of the gloss, or drop the label and write the point as a plain sentence. Carve-outs: when the label span is a full sentence on its own (not a label introducing a gloss), the period is correct; and for the unbolded form, only flag when the leading fragment is clearly a label (a 1-4 word noun phrase, no verb) — a short complete sentence opening a bullet is fine.
 
 ### Title case headings
-- Review title-case subheadings such as "Strategic Negotiations And Key Partnerships" when the surrounding document uses sentence case. Use sentence case for subheadings; reserve title case for the piece's main title when the house style calls for it.
+- Review title-case subheadings such as "Strategic Negotiations And Key Partnerships" when the surrounding document uses sentence case. Use sentence case for subheadings when appropriate to that style; preserve official names and documented brand mechanics. Follow [headlines.md](headlines.md) for source support, useful conventional labels, and anchored-heading checks before changing wording or case.
 
 ### Hyphenated modifier stacking
 - AI stacks compound modifiers: "a high-quality, well-architected, future-proof solution." The individual hyphens may be correct; the tell is the density. Cut to the modifier that matters. Adapted from `blader/humanizer` P26.
@@ -381,13 +382,13 @@ These slot-fill constructions signal that a sentence was generated, not written.
 - Catch the obvious shapes: `\[(?:Your|Insert|Add|Enter|Describe|Specify|Choose)[^\]]+\]`, `\b\d{4}-XX-XX\b`, HTML/Markdown comments with placeholder verbs (`add`, `fill in`, `todo`, `insert`).
 
 ### Chatbot citation markup leaks
-- Internal citation tokens that leak through when text is copy-pasted from chat UIs: `citeturn0search0`, `contentReference[oaicite:0]{index=0}`, `oai_citation`, `[attached_file:1]`, `grok_card`. These are not patterns — they are fingerprints. Their presence is essentially proof the text was generated by a specific chat tool and pasted without cleanup.
-- The fix is mechanical: strip every markup token. If the source or user supplies the intended reference, insert it; otherwise flag the citation gap rather than fabricating a reference. Don't try to humanize the markup.
+- Internal citation tokens can leak through when text is copied from chat UIs: `citeturn0search0`, `contentReference[oaicite:0]{index=0}`, `oai_citation`, `[attached_file:1]`, `grok_card`. They indicate possible passage through a tool, not authorship of the surrounding text; a person can paste or quote them too.
+- In editable publication prose, remove unintended markup tokens when the user's scope permits it. Preserve intentional examples, quotations, code, and other protected uses. If the source or user supplies the intended reference, insert it; otherwise flag the citation gap rather than fabricating a reference.
 - Adapted from `Aboudjem/humanizer-skill` P34. Worth catching even when nothing else in the text reads as AI — the token itself is enough.
 
 ### AI-tool URL parameters
-- Tracking parameters that AI tools auto-append to URLs they generate, surviving copy-paste into published content: `utm_source=chatgpt.com`, `utm_source=copilot.com`, `utm_source=openai`, `utm_source=claude.ai`, `utm_source=perplexity.ai`, `referrer=grok.com`. Same logic as citation markup leaks — the presence of the parameter is the signature, regardless of what the surrounding text reads like.
-- The fix: strip the AI-referrer tracking parameter from every URL that carries one, and leave the rest of the query string alone — the tracking parameter is the signature, and a functional parameter (`?page=2`, `?v=4`) is not evidence of anything. Keep the URL itself if the link is meaningful; lose only the parameter. Adapted from `Aboudjem/humanizer-skill` P35.
+- Tool-referrer tracking parameters can survive copied links: `utm_source=chatgpt.com`, `utm_source=copilot.com`, `utm_source=openai`, `utm_source=claude.ai`, `utm_source=perplexity.ai`, `referrer=grok.com`. They suggest link passage through a tool, not authorship of the whole text.
+- URLs are protected during ordinary cleanup: report the parameter and propose its removal. When the user specifically authorizes link cleanup, remove only the identified tracking parameter and leave the rest of the URL and query string intact. Preserve functional parameters (`?page=2`, `?v=4`) and assess link behavior separately; the detector cannot validate it. Adapted from `Aboudjem/humanizer-skill` P35.
 
 ### Novelty inflation
 - Unsupported novelty claims present established concepts as if the speaker invented or discovered them: "He introduced a term," "She coined the phrase," "a concept nobody's naming," "a failure mode nobody talks about." Wording alone does not establish that an idea is new.
@@ -426,7 +427,7 @@ These slot-fill constructions signal that a sentence was generated, not written.
 - The fix: use a reason or audience only when the source already supplies one, then drop the generic CTA. For example, a source that says a post explains context-window leakage to RAG developers can lead with that description. Do not invent an author, superlative, first-person judgment, technical claim, or audience. If the source gives no specific reason, the share does not need a sign-off; let the link stand on its own.
 
 ### Stock reaction framing
-- Treat this as a **style heuristic, not an authorship signal**. The current corpus produces no detector hits for this category in either class, so it cannot estimate a direction. For this challenged, unobserved category, the precision-first choice is to keep the finding visible without moving the authorship score.
+- Treat this as a **style heuristic, not an authorship signal**. The detector keeps these findings visible without moving its authorship score. Review whether the framing adds meaning; do not infer authorship from a hit.
 - Flag the **stock framing**, not the existence of a named emotion: "What surprised me most," "I was fascinated to discover," "What struck me was," "I was excited to learn," "The most interesting part," and the bare section-header variant: "Interesting part of the project:" / "Interesting thing here:" / "Interesting aspect:". These can function as generic list introductions or significance pre-announcements when the sentence would say the same thing without them.
 - Keep authentic, specific reactions. "I was surprised" is not a machine tell by itself, and a rewrite must not replace a named emotion with theatrical body language just to satisfy "show, don't tell." Add the changed expectation and reason only when the source supplies them; otherwise preserve the reaction as written.
 - Fix only the empty frame. If the reaction adds nothing, lead with the source's concrete fact. If the source supplies the expectation and reason, a specific form such as "I expected X; the 40% drop surprised me because Y" can preserve the reaction. Otherwise keep the authentic reaction or flag the missing context rather than inventing experience.
@@ -521,7 +522,7 @@ These slot-fill constructions signal that a sentence was generated, not written.
 ### Excessive structure
 - Too many headers in short text: more than 3 headings in under 300 words can signal unnecessary scaffolding. Report the structure during ordinary cleanup; merge sections or use prose transitions only when the user's scope permits restructuring.
 - Too many list items: review 8+ bullet points in under 200 words when the material is not genuinely list-shaped. Convert the list to prose only when structural editing is authorized.
-- Formulaic section headers: "Overview," "Key Points," "Summary," "Conclusion," "Introduction" — these are default AI scaffolding. During ordinary cleanup, flag an empty label. Rename, merge, or remove headers only when structural editing is authorized, using the source's own subject matter.
+- Formulaic section headers: "Overview," "Key Points," "Summary," "Conclusion," and "Introduction" can be useful conventional labels. Flag one only when it obscures the section's subject or introduces empty scaffolding in context. A justified wording fix can belong to ordinary cleanup; merging, moving, or removing sections requires structural scope. Use the source's own subject matter and follow [headlines.md](headlines.md) to preserve linked headings, anchors, and protected references.
 - Fragmented headers: a heading followed by a one-line warm-up that restates it ("## Performance", then "Speed matters.") before the real content starts. Cut the warm-up; the heading already did that job. Adapted from `blader/humanizer` P29.
 
 ### Diff-anchored writing
@@ -588,9 +589,9 @@ Structural regularity can matter more than a vocabulary swap. Consistent sentenc
 
 ### Vocabulary diversity (stylometric)
 
-In longer pieces (200+ words), look at how much vocabulary the text actually uses. The type-token ratio (TTR) — distinct word types divided by total tokens — is a classical stylometric signal that's easy to read by eye. It falls as a text gets longer, whoever wrote it, so read it over stretches of about 200 words rather than across a whole document: the 6,000-word public-domain slices in this repo's human control corpus sit between 0.18 and 0.31 overall. Within a 200-word stretch, human prose usually lands somewhere around 0.50–0.65 in English. AI text trends flatter, sometimes drifting under 0.40 when the model gets locked on a small vocabulary loop.
+In longer pieces, review whether a narrow vocabulary obscures the content or reflects needed repetition. The type-token ratio (TTR) is the number of distinct token types divided by total tokens; whole-document TTR depends on document length. The bundled detector instead calculates moving-average TTR (MATTR): the mean distinct-token share across every consecutive 200-token window. At 200 or more tokens, it emits `low-ttr` when that mean is below 0.40. This is an implemented operational review threshold, not a locally validated boundary between human and machine authorship.
 
-A very low TTR is not by itself proof of AI authorship — narrow topics, technical reference material, and second-language writing all legitimately compress vocabulary. But on general prose where you'd expect range (essays, articles, social content over ~200 words), a TTR below 0.40 is worth a second look. The fix is rarely to thesaurus the text. Use specific things and cases already present in the source, and repeat a technical term when it is the accurate term.
+Low vocabulary diversity does not establish AI authorship. Narrow topics, technical reference material, and second-language writing all legitimately compress vocabulary. On general prose where range would help, review the actual repetition rather than rewriting to increase a score. Use specific things and cases already present in the source, and repeat a technical term when it is the accurate term; do not force synonyms or invent examples.
 
 This is the first of four stylometric signals on the roadmap. Sentence-length burstiness has since shipped in approximated form as the `cross-para-burstiness` detector category. The other two (function-word z-scores against a human-prose reference, POS-bigram log-odds) require either a POS tagger or a reference distribution and aren't implemented as detector categories yet.
 
@@ -716,29 +717,6 @@ Each profile is a set of concrete targets, not a vibe:
 
 ## Return to the output contract
 
-After applying this catalog, follow the skill entry's Output format for the
-requested mode. Normal cleanup returns one Final rewrite, an optional Changes
-summary, and Verification; a separate Issues found section requires a requested
-detailed audit. Put protected and intentional residuals in Verification.
-Identify the applicable patterns retained in protected passages and why they
-remain; a list of protected region types alone is not a residual report.
-
-Before drafting, if context exceptions leave no justified, authorized edit and
-no separate transformation was requested, copy the source exactly into Final
-rewrite with zero editing passes. Do not make optional clarity or cadence edits
-to text that needs no cleanup; an inferred profile does not request them.
-
-Assemble Final rewrite first, then derive the change summary from its actual
-differences from the source. Check every claimed edit against the delivered
-span; planned or reverted edits must not be reported as completed changes.
-A justified edit missing from the final text remains unresolved, even if the
-audit correctly identified it. Follow the entry's shared editing budget when
-correcting a missing edit; do not invent an extra pass or a successful result.
-
-Verification states editing passes, checks, residuals, and the stop reason.
-When tools are unavailable, name them: the detector, marks normalizer, and
-preservation validator did not run; the assessment is model-only. Use that
-status for unchanged text too. Do not replace it with a generic "no tools"
-statement. No change means zero editing passes. Detect mode returns findings
-and assessment without a rewrite, and reports its model-only status when the
-detector cannot run.
+Follow [SKILL.md's output format](../SKILL.md#output-format) for the requested mode.
+That is the sole output contract, including no-op behavior, the editing pass
+limit, protected residuals, and reporting which checks actually ran.

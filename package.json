@@ -1,0 +1,14 @@
+{
+  "name": "avoid-ai-writing",
+  "version": "3.37.0",
+  "description": "A writing skill and local tools for source-faithful editing.",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "verify": "node scripts/verify.js",
+    "test": "node --test tests/avoid-ai-writing-tools.test.js tests/package.test.js"
+  }
+}

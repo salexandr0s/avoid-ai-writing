@@ -11,13 +11,13 @@ skill has more `###` sections than that — the gap is **not** missing coverage,
 it's rules that are judgment calls a regex can't make. The three groups below
 account for every entry on both sides.
 
-Three counts coexist on purpose and should not be forced to match: the README's
-**pattern-category count** (the human-facing prose catalog, derived from references/patterns.md
-and guarded in CI), the engine's **54 `type`s** (which split the vocabulary tiers
-and add stylometric signals), and references/patterns.md's `###` sections (which also include
-writer-side tests with no detectable form). The
-`categories.test.js` enforces the engine ↔ this-file mapping, and checks every
-prose statement of the engine `type` total against `TYPE_LABELS`.
+The engine's **54 `type`s** split vocabulary tiers and add stylometric signals.
+The `###` sections in references/patterns.md also include writer-side tests with
+no detectable form, so their count need not match the engine. From the repository
+root, run `npm run verify` (or `node scripts/verify.js`) for package integrity and
+tool checks, and `npm test` for the portable regression suite. Review this map
+manually when changing rules or detector types; do not assume the tests establish
+every editorial rule's meaning or applicability.
 
 ## A. Direct mapping (skill rule → detector `type`)
 
@@ -110,6 +110,7 @@ mistake their absence for a coverage gap:
 - Synonym cycling
 - Copula avoidance
 - Promotional language
+- Title and heading specificity, audience fit, and factual support ([local guidance](../references/headlines.md))
 - Context-dependent `actually` as a hollow intensifier *(delete it when it only adds emphasis; keep it when it carries a named correction or expectation gap). The same token performs both jobs, so matching it unconditionally would flag ordinary corrective prose.*
 - Sentence structure: split-sentence negation without a minimizer ("The headline isn't the speed. The real story is Y.") / multi-negation countdown / tailing negation / "not only X but Y" and "not X but Y" correlatives *(the joined "It's not X, it's Y" frame is `negative-parallelism` in §A)*
 - Structural issues / Excessive structure / Inline-header lists / Numbered list inflation
