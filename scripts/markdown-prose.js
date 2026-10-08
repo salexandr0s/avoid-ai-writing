@@ -80,10 +80,18 @@ function markdownProse(text) {
   const lines = text.split('\n');
   const bare = (s) => s.replace(/\r$/, '');
   let fmEnd = -1;
-  // A leading thematic break followed by a blank is not frontmatter.
-  if (/^---[ \t]*$/.test(bare(lines[0]).replace(/^\uFEFF/, '')) && lines.length > 1 && lines[1].trim()) {
+  // Match the validator's closed-mapping guard: ordinary prose between two
+  // thematic breaks must remain editable. Leading YAML blanks/comments are valid.
+  if (/^---[ \t]*$/.test(bare(lines[0]).replace(/^\uFEFF/, ''))) {
+    let firstContent = null;
+    const yamlKey = /^[ \t]*(?:[A-Za-z0-9_.-]+|"[^"\r\n]+"|'[^'\r\n]+')[ \t]*:/;
     for (let k = 1; k < lines.length; k += 1) {
-      if (/^(?:---|\.\.\.)[ \t]*$/.test(bare(lines[k]))) { fmEnd = k; break; }
+      const line = bare(lines[k]);
+      if (/^(?:---|\.\.\.)[ \t]*$/.test(line)) {
+        if (firstContent !== null && yamlKey.test(firstContent)) fmEnd = k;
+        break;
+      }
+      if (firstContent === null && line.trim() && !/^[ \t]*#/.test(line)) firstContent = line;
     }
   }
 

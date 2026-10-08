@@ -89,19 +89,38 @@ const AIDetectorValidate = (() => {
   function fenceBlockTexts(text) {
     return fenceSpans(text).map(([start, end]) => text.slice(start, end));
   }
-  const INLINE_CODE = /`[^`\n]+`/g;
-  const YAML_FRONTMATTER = /^---\n[\s\S]*?\n---(?=\n|$)/;
   const BLOCKQUOTE_BLOCK = /(?:^[ \t]*>[^\n]*(?:\n[ \t]*>[^\n]*)*)/gm;
   const MD_HEADING = /^(#{1,6})[ \t]+(.+?)[ \t]*$/gm;
   const URL = /https?:\/\/[^\s)>\]"'`]+/g;
   const MD_LINK_TARGET = /\[[^\]\n]*\]\(([^)\s]+)[^)]*\)/g;
-  const PATH = /(?:^|[\s(])((?:\.{0,2}\/)[A-Za-z0-9._~\-]+(?:\/[A-Za-z0-9._~\-]+)*|[A-Za-z]:\\[A-Za-z0-9._\\~\-]+)/g;
+  const PATH = /(?:^|[\s(])((?:(?:~|\.{0,2})\/)[A-Za-z0-9._~\-]+(?:\/[A-Za-z0-9._~\-]+)*|[A-Za-z]:\\[A-Za-z0-9._\\~\-]+)/g;
   const NUMBER = /\b\d[\d,]*(?:\.\d+)?%?\b/g;
 
   // Tracking parameters this skill is documented to strip (SKILL.md,
   // "AI-tool URL parameters"). Kept in sync with the `ai-utm-source`
-  // detector category in patterns.js.
-  const AI_URL_PARAM = /^(?:utm_source=(?:chatgpt\.com|openai(?:\.com)?|copilot\.com|claude\.ai|perplexity\.ai|gemini\.google\.com|grok\.com)|referrer=grok\.com)$/i;
+  // detector category in patterns.js. Match complete values: the detector also
+  // flags prefixes in unfamiliar hosts, which is not permission to remove them.
+  const AI_URL_PARAM = /^(?:utm_source=(?:(?:chatgpt|openai|copilot|claude|grok|gemini|perplexity)(?:\.com|\.ai)?|gemini\.google\.com)|referrer=(?:chatgpt|copilot|grok|claude|gemini|perplexity)\.(?:com|ai))$/i;
+
+  /** Closed YAML mappings only; paired thematic breaks remain prose. */
+  function frontmatterText(text) {
+    const lines = text.split('\n');
+    const bare = (line) => line.replace(/\r$/, '');
+    if (!/^---[ \t]*$/.test(bare(lines[0]).replace(/^\uFEFF/, ''))) return null;
+    let firstContent = null;
+    let end = lines[0].length + 1;
+    const yamlKey = /^[ \t]*(?:[A-Za-z0-9_.-]+|"[^"\r\n]+"|'[^'\r\n]+')[ \t]*:/;
+    for (let i = 1; i < lines.length; i += 1) {
+      const line = bare(lines[i]);
+      if (/^(?:---|\.\.\.)[ \t]*$/.test(line)) {
+        return firstContent !== null && yamlKey.test(firstContent)
+          ? text.slice(0, end + lines[i].length) : null;
+      }
+      if (firstContent === null && line.trim() && !/^[ \t]*#/.test(line)) firstContent = line;
+      end += lines[i].length + 1;
+    }
+    return null;
+  }
 
   function extractAll(re, text) {
     const out = [];
@@ -114,23 +133,81 @@ const AIDetectorValidate = (() => {
     return out;
   }
 
-  /**
-   * Blank out fenced code and inline code before scanning prose-level
-   * constructs. Without this, a URL inside a code sample counts twice and a
-   * `|` in a code block reads as a table row.
-   */
-  function maskCode(text) {
+  /** Replace protected characters without losing line boundaries or offsets. */
+  function blankSpans(text, spans) {
     const out = text.split('');
-    // Blank out everything inside fenced code spans so fenced content reads as
-    // empty interior lines (their newlines are kept as line separators).
-    for (const [start, end] of fenceSpans(text)) {
-      // Fill the opened block inside the fence markers; keep newlines so
-      // downstream offsets stay aligned.
+    for (const [start, end] of spans) {
       for (let i = start; i < end; i += 1) {
-        if (out[i] !== '\n') out[i] = ' ';
+        if (out[i] !== '\n' && out[i] !== '\r') out[i] = ' ';
       }
     }
-    return out.join('').replace(INLINE_CODE, (span) => ' '.repeat(span.length));
+    return out.join('');
+  }
+
+  /**
+   * Pair equal backtick runs, including spans wrapped within one paragraph.
+   * Fences, blank lines and common block starts stop pairing. Precomputing the
+   * next matching run keeps unmatched delimiters from causing quadratic scans.
+   * Backslash escapes affect an opener; inside a span they remain literal.
+   */
+  function inlineCodeSpans(text) {
+    const source = blankSpans(text, fenceSpans(text));
+    const boundaries = new Set();
+    let offset = 0;
+    let quoteDepth = 0;
+    for (const line of source.split('\n')) {
+      const next = offset + line.length + 1;
+      const prefix = line.match(/^(?: {0,3}>[ \t]?)+/);
+      const depth = prefix ? (prefix[0].match(/>/g) || []).length : 0;
+      if (depth !== quoteDepth) boundaries.add(offset);
+      quoteDepth = depth;
+      const body = prefix ? line.slice(prefix[0].length) : line;
+      if (!body.trim()
+        || /^ {0,3}#{1,6}(?:[ \t]|$)/.test(body)
+        || /^ {0,3}(?:=+|-+)[ \t]*\r?$/.test(body)
+        || /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})\r?$/.test(body)) {
+        boundaries.add(offset);
+        boundaries.add(next);
+      } else if (/^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/.test(body)) {
+        boundaries.add(offset);
+      }
+      offset = next;
+    }
+
+    const runs = [];
+    let segment = 0;
+    for (let i = 0; i < source.length;) {
+      if (boundaries.has(i)) segment += 1;
+      if (source[i] !== '`') { i += 1; continue; }
+      const start = i;
+      while (source[i] === '`') i += 1;
+      let slashes = 0;
+      for (let j = start - 1; j >= 0 && source[j] === '\\'; j -= 1) slashes += 1;
+      runs.push({ start, end: i, length: i - start, escaped: slashes % 2 === 1, segment });
+    }
+
+    const nextSame = [], nextShorter = [];
+    const nextByLength = new Map();
+    for (let i = runs.length - 1; i >= 0; i -= 1) {
+      if (i === runs.length - 1 || runs[i].segment !== runs[i + 1].segment) nextByLength.clear();
+      nextSame[i] = nextByLength.get(runs[i].length);
+      nextShorter[i] = nextByLength.get(runs[i].length - 1);
+      nextByLength.set(runs[i].length, i);
+    }
+    const spans = [];
+    for (let i = 0; i < runs.length;) {
+      const run = runs[i];
+      const close = run.escaped ? nextShorter[i] : nextSame[i];
+      if (close === undefined) { i += 1; continue; }
+      spans.push([run.start + (run.escaped ? 1 : 0), runs[close].end]);
+      i = close + 1;
+    }
+    return spans;
+  }
+
+  /** Blank code before scanning URLs, tables and other prose-level constructs. */
+  function maskCode(text) {
+    return blankSpans(blankSpans(text, fenceSpans(text)), inlineCodeSpans(text));
   }
 
   function normalizeUrl(u) {
@@ -251,25 +328,32 @@ const AIDetectorValidate = (() => {
    */
   function extractIndentedBlocks(text) {
     const lines = text.split('\n');
+    const visible = blankSpans(text, fenceSpans(text)).split('\n');
     const blocks = [];
     let current = null;
     let inList = false;
+    let previousBlank = true;
+    const finish = () => {
+      if (current !== null) blocks.push(lines.slice(current.start, current.end + 1).join('\n'));
+      current = null;
+    };
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      const isIndented = /^(?: {4}|\t)\S/.test(line);
+      if (line !== visible[i]) { finish(); previousBlank = false; continue; }
+      const isIndented = /^(?: {4}| *\t)/.test(line);
       const isBlank = /^\s*$/.test(line);
-      if (/^\s*(?:[-*+]|\d+[.)])\s/.test(line)) inList = true;
-      else if (!isBlank && !isIndented) inList = false;
-
-      if (isIndented && !inList) {
-        if (current === null) current = [];
-        current.push(line);
-      } else if (!isBlank && current !== null) {
-        blocks.push(current.join('\n'));
-        current = null;
+      const isCode = !isBlank && isIndented && !inList && (previousBlank || current !== null);
+      if (isCode) {
+        if (current === null) current = { start: i, end: i };
+        else current.end = i;
+      } else if (!isBlank) {
+        finish();
+        if (/^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/.test(line)) inList = true;
+        else if (/^\S/.test(line)) inList = false;
       }
+      previousBlank = isBlank;
     }
-    if (current !== null) blocks.push(current.join('\n'));
+    finish();
     return blocks;
   }
 
@@ -331,7 +415,7 @@ const AIDetectorValidate = (() => {
     // The regex-backed extractors above anchor on a bare \n. A Windows-authored
     // document arrives with CRLF, so protected content can become invisible:
     // frontmatter could be rewritten and validate() still returned ok. See the
-    // CRLF must-fire cases in validate.test.js. Normalize once, up front, so
+    // CRLF regression cases in the repository's native tests. Normalize once, so
     // extraction sees one line-ending shape. A rewrite that only re-terminates
     // CRLF lines is not a preservation failure, but a lone carriage return can
     // be meaningful code content and must remain visible to exact comparisons.
@@ -349,9 +433,7 @@ const AIDetectorValidate = (() => {
     }
 
     // ── YAML frontmatter: exact. ──
-    const origYaml = original.match(YAML_FRONTMATTER);
-    const newYaml = rewritten.match(YAML_FRONTMATTER);
-    if ((origYaml ? origYaml[0] : null) !== (newYaml ? newYaml[0] : null)) {
+    if (frontmatterText(original) !== frontmatterText(rewritten)) {
       err('frontmatter-modified', 'YAML frontmatter was modified, added, or removed.');
     }
 
@@ -375,9 +457,18 @@ const AIDetectorValidate = (() => {
     }
 
     // ── Inline code: identifiers, flags, filenames. ──
-    const lostInline = missingFrom(extractAll(INLINE_CODE, original), extractAll(INLINE_CODE, rewritten));
+    const origInline = inlineCodeSpans(original).map(([start, end]) => original.slice(start, end));
+    const newInline = inlineCodeSpans(rewritten).map(([start, end]) => rewritten.slice(start, end));
+    const lostInline = missingFrom(origInline, newInline);
     if (lostInline.length) {
       err('inline-code-missing', `Inline code removed: ${sample(lostInline)}`);
+    }
+
+    // Indentation can also continue list prose, so this remains advisory.
+    const origIndented = extractIndentedBlocks(original);
+    const newIndented = extractIndentedBlocks(rewritten);
+    if (origIndented.length !== newIndented.length || origIndented.some((block, i) => block !== newIndented[i])) {
+      warn('indented-code-modified', 'Top-level indented code was modified, added, or removed. Check that code content was preserved.');
     }
 
     // ── URLs, compared with AI tracking parameters stripped from both sides. ──
@@ -481,7 +572,7 @@ const AIDetectorValidate = (() => {
         wordsAfter: newWords,
         fencedBlocks: origFenced.length,
         headings: origHeadings.length,
-        indentedBlocks: extractIndentedBlocks(original).length,
+        indentedBlocks: origIndented.length,
         residual,
       },
     };

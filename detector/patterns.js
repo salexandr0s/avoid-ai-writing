@@ -344,8 +344,8 @@ const AIDetector = (() => {
       const match = /^\s+(?:a|an|the)\s+[\w-]+\s*(?:(?:and\b|or\b)\s+(?:a\s+|an\s+|the\s+)?(?:[\w-]+\s+){0,2}[\w-]+\s*)?(?:([,.!?;])|$)/i.exec(after);
       if (match) {
         const predicateRe = /\b(?:can|could|should|will|would|may|might|must|is|are|was|were|has|have|had|do|does|did|include|includes|disable|disables|reject|accept|allow|deny|provide|require|use|make|work|help|give|take|need|become|seem|look|show|offer|support|supports|fail|pass|lack|prefer|choose|prevent|stop)\b/i;
-        
-        // If the matched subject ends with a predicate right before the punctuation, 
+
+        // If the matched subject ends with a predicate right before the punctuation,
         // the predicate was consumed as part of the compound subject.
         const subjectText = match[0].slice(0, match[1] ? -match[1].length : undefined).trim();
         const lastWord = subjectText.split(/\s+/).pop();
@@ -354,7 +354,7 @@ const AIDetector = (() => {
         }
 
         if (match[1] === ',') {
-          // If the comma leads into a phrase, limit noun classification to a predicate 
+          // If the comma leads into a phrase, limit noun classification to a predicate
           // belonging to the article-led subject (after the next comma), excluding predicates inside subordinate clauses.
           const remainder = text.slice(end + match[0].length, end + 120);
           // An adverb can sit between the closing comma and the predicate.
@@ -381,7 +381,7 @@ const AIDetector = (() => {
       const hasSingularEvidence = /\b(?:a|an|this|that|every|each|one)\s+(?:(?!(?:of|for|in|with|and|or|which|what|that|who)\b)[\w-]+\s+){1,3}$/i.test(before)
         || /\b(?:it|he|she)\s+$/i.test(before)
         || /\b(?:a|an|the|this|that|my|our|your|their|its|his|her|each|every)\s+[\w-]+\s+(?:which|that|who)\s+$/i.test(before);
-      
+
       if (!hasPluralDeterminer && !hasPluralPredicate && hasSingularEvidence) {
         return false;
       }
@@ -1260,6 +1260,8 @@ const AIDetector = (() => {
     while ((m = re.exec(text)) !== null) {
       const marker = m[1];
       if (!open) {
+        // A backtick in the info string makes this inline prose, not a fence.
+        if (marker[0] === '`' && m[2].includes('`')) continue;
         open = { char: marker[0], len: marker.length, start: m.index };
       } else if (
         marker[0] === open.char &&
@@ -1286,43 +1288,56 @@ const AIDetector = (() => {
   }
 
   function inlineCodeRanges(text) {
+    // Keep paragraph boundaries and run pairing aligned with validate.js.
+    // Both scripts remain standalone browser IIFEs, so neither requires the
+    // Node-only Markdown helper used by the style tools.
+    const boundaries = new Set();
+    let offset = 0;
+    let quoteDepth = 0;
+    for (const line of text.split('\n')) {
+      const next = offset + line.length + 1;
+      const prefix = line.match(/^(?: {0,3}>[ \t]?)+/);
+      const depth = prefix ? (prefix[0].match(/>/g) || []).length : 0;
+      if (depth !== quoteDepth) boundaries.add(offset);
+      quoteDepth = depth;
+      const body = prefix ? line.slice(prefix[0].length) : line;
+      if (!body.trim()
+        || /^ {0,3}#{1,6}(?:[ \t]|$)/.test(body)
+        || /^ {0,3}(?:=+|-+)[ \t]*\r?$/.test(body)
+        || /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:_[ \t]*){3,}|(?:-[ \t]*){3,})\r?$/.test(body)) {
+        boundaries.add(offset);
+        boundaries.add(next);
+      } else if (/^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/.test(body)) {
+        boundaries.add(offset);
+      }
+      offset = next;
+    }
     const runs = [];
+    let segment = 0;
     for (let i = 0; i < text.length;) {
-      if (text[i] === '\n') {
-        runs.push(null);
-        i += 1;
-        continue;
-      }
-      if (text[i] !== '`') {
-        i += 1;
-        continue;
-      }
+      if (boundaries.has(i)) segment += 1;
+      if (text[i] !== '`') { i += 1; continue; }
       const start = i;
       while (i < text.length && text[i] === '`') i += 1;
-      runs.push({ start, end: i, length: i - start });
+      let slashes = 0;
+      for (let j = start - 1; j >= 0 && text[j] === '\\'; j -= 1) slashes += 1;
+      runs.push({ start, end: i, length: i - start, escaped: slashes % 2 === 1, segment });
     }
-
+    const nextSame = [], nextShorter = [];
+    const nextByLength = new Map();
+    for (let i = runs.length - 1; i >= 0; i -= 1) {
+      if (i === runs.length - 1 || runs[i].segment !== runs[i + 1].segment) nextByLength.clear();
+      nextSame[i] = nextByLength.get(runs[i].length);
+      nextShorter[i] = nextByLength.get(runs[i].length - 1);
+      nextByLength.set(runs[i].length, i);
+    }
     const ranges = [];
-    let lineStart = 0;
-    while (lineStart < runs.length) {
-      let lineEnd = runs.indexOf(null, lineStart);
-      if (lineEnd === -1) lineEnd = runs.length;
-      const nextByLength = new Map();
-      const nextSame = new Array(lineEnd - lineStart);
-      for (let i = lineEnd - 1; i >= lineStart; i -= 1) {
-        nextSame[i - lineStart] = nextByLength.get(runs[i].length);
-        nextByLength.set(runs[i].length, i);
-      }
-      for (let i = lineStart; i < lineEnd;) {
-        const close = nextSame[i - lineStart];
-        if (close === undefined) {
-          i += 1;
-          continue;
-        }
-        ranges.push([runs[i].start, runs[close].end]);
-        i = close + 1;
-      }
-      lineStart = lineEnd + 1;
+    for (let i = 0; i < runs.length;) {
+      const run = runs[i];
+      const close = run.escaped ? nextShorter[i] : nextSame[i];
+      if (close === undefined) { i += 1; continue; }
+      ranges.push([run.start + (run.escaped ? 1 : 0), runs[close].end]);
+      i = close + 1;
     }
     return ranges;
   }
@@ -1359,7 +1374,7 @@ const AIDetector = (() => {
 
     let closingLine = -1;
     for (let i = 1; i < lines.length; i += 1) {
-      if (/^---[ \t]*$/.test(lines[i].body)) {
+      if (/^(?:---|\.\.\.)[ \t]*$/.test(lines[i].body)) {
         closingLine = i;
         break;
       }
@@ -1847,26 +1862,8 @@ const AIDetector = (() => {
   }
 
   function maskYamlFrontmatter(chars) {
-    const lines = chars.join('').split('\n');
-    const bare = (line) => line.replace(/\r$/, '');
-    const first = bare(lines[0]).replace(/^\uFEFF/, '');
-    if (first !== '---' || lines.length < 2 || /^\s*$/.test(bare(lines[1]))) return;
-
-    let closingLine = -1;
-    for (let i = 1; i < lines.length; i += 1) {
-      if (bare(lines[i]) === '---') {
-        closingLine = i;
-        break;
-      }
-    }
-    if (closingLine === -1) return;
-
-    let end = 0;
-    for (let i = 0; i <= closingLine; i += 1) {
-      end += lines[i].length;
-      if (i < lines.length - 1) end += 1;
-    }
-    blankRange(chars, 0, end);
+    const frontmatter = initialFrontmatterRange(chars.join(''));
+    if (frontmatter) blankRange(chars, frontmatter.start, frontmatter.end);
   }
 
   function maskYamlMetadata(chars) {
