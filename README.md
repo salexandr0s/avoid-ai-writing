@@ -37,12 +37,14 @@ to other languages requires language-specific rules and evidence.
 Install into a project-local agentskills directory:
 
 ```bash
+mkdir -p .agents/skills
 git clone https://github.com/salexandr0s/avoid-ai-writing .agents/skills/avoid-ai-writing
 ```
 
 Or install globally for agents that read `~/.agents`:
 
 ```bash
+mkdir -p ~/.agents/skills
 git clone https://github.com/salexandr0s/avoid-ai-writing ~/.agents/skills/avoid-ai-writing
 ```
 
